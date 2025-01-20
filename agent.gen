@@ -1,0 +1,140 @@
+{
+    "nodes": [
+        {
+            "nodeId": "d09b43bb-5043-43af-a6ae-1ba1a409805f",
+            "action": 0,
+            "prompt": "请上传成绩单图片",
+            "welcomeType": 1,
+            "envs": [
+                {
+                    "key": "app_id",
+                    "value": "YOUR_WPS_APP_ID"
+                },
+                {
+                    "key": "app_key",
+                    "value": "YOUR_WPS_APP_KEY"
+                }
+            ],
+            "varInitValues": {
+                "status": "",
+                "result": "",
+                "code": "",
+                "gpa": ""
+            },
+            "appearance": {
+                "startPoint": "{\"x\":-10,\"y\":300}",
+                "textPoint": "{\"x\":-10,\"y\":300}"
+            }
+        },
+        {
+            "nodeId": "c35b31d5-910b-4fcb-ba94-0a6b711754e6",
+            "action": 100,
+            "prompt": "检查图片中成绩单的状态:\n\n1. 是否有盖章\n2. 分数部分是否有遮挡\n3. 成绩单是否有分数\n\n你的输出必须是以下格式：\n\n是否有盖章:  <有/无>\n分数部分是否有遮挡:  <有/无>\n成绩单是否有分数:  <有/无>\n",
+            "includeHistory": true,
+            "outputVariableName": "status",
+            "appearance": {
+                "startPoint": "{\"x\":400,\"y\":300}",
+                "textPoint": "{\"x\":400,\"y\":300}"
+            }
+        },
+        {
+            "nodeId": "417e4029-55d4-4291-8655-2736b9bc2d10",
+            "action": 6,
+            "lang": "js",
+            "prompt": "const crypto = require('crypto');\nconst ExcelJS = require('exceljs');\n\nconst app_id = '{{app_id}}';\nconst app_key = '{{app_key}}';\nconst imgUrls = ['{{sys.imageUrl}}'];\n\nasync function convertImageToDoc(officeType) {\n    const body = {\n        img_urls: imgUrls\n    };\n    const date = new Date().toUTCString();\n    // HTTP Body 中数据的 MD5 值十六进制表达方式, 必需小写, 如果是 get 请求一律使用 URI 计算 MD5\n    const contentMd5 = crypto.createHash('md5').update(JSON.stringify(body)).digest('hex').toLowerCase();\n    const contentType = 'application/json';\n    const authorization = generateAuthorizationHeader(date, contentMd5, contentType);\n\n    const response = await fetch(`https://solution.wps.cn/api/developer/v1/office/img/convert/to/${officeType}`, {\n        method: 'POST',\n        headers: {\n            Date: date,\n            'Content-Md5': contentMd5,\n            'Content-Type': contentType,\n            Authorization: authorization\n        },\n        body: JSON.stringify(body)\n    });\n\n    const data = await response.json();\n    // console.log('转换结果:', data);\n\n    return data;\n}\n\nfunction generateAuthorizationHeader(date, contentMd5, contentType) {\n    const hash = crypto.createHash('sha1');\n    hash.update(app_key + contentMd5 + contentType + date);\n    const sha1Value = hash.digest('hex');\n    return 'WPS-2:' + app_id + ':' + sha1Value;\n}\n\nasync function getTaskResult(officeType, taskId) {\n    // GET /api/developer/v1/tasks/convert/to/:office_type/:task_id\n\n    const path = `/api/developer/v1/tasks/convert/to/${officeType}/${taskId}`;\n    const url = `https://solution.wps.cn${path}`;\n    const date = new Date().toUTCString();\n    // HTTP Body 中数据的 MD5 值十六进制表达方式, 必需小写, 如果是 get 请求一律使用 URI 计算 MD5\n    const contentMd5 = crypto.createHash('md5').update(path).digest('hex').toLowerCase();\n    // console.log('contentMd5:', contentMd5);\n    const contentType = 'application/json';\n\n    const authorization = generateAuthorizationHeader(date, contentMd5, contentType);\n\n    const response = await fetch(url, {\n        method: 'GET',\n        headers: {\n            Date: date,\n            'Content-Md5': contentMd5,\n            'Content-Type': contentType,\n            Authorization: authorization\n        }\n    });\n\n    const data = await response.json();\n    // console.log('任务结果:', data);\n    return data;\n}\n\nasync function readExcel(excelUrl) {\n    // 下载文件\n    const response = await fetch(excelUrl);\n    const buffer = await response.arrayBuffer();\n\n    // Convert it to a string using exceljs\n    const workbook = new ExcelJS.Workbook();\n    await workbook.xlsx.load(buffer);\n\n    const worksheet = workbook.getWorksheet(1);\n    let content = '';\n\n    worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {\n        let rowStr = '';\n        // let rowStr = `sheet: ${sheet.name} \\n rowNumber: ${rowIdx}`;\n        row.eachCell((cell, cellIdx) => {\n\n            if (cellIdx > 1) {\n                rowStr += \",\";\n            }\n\n            // console.log('cell type:', cell.type);\n\n            if (cell.type === ExcelJS.ValueType.Merge) {\n                // if the master cell is in the same row\n                if (cell.master.row === cell.row) {\n                    // if the rowStr is empty, get the parent cell\n                    if (rowStr.length === 0) {\n                        // get the partent cell\n                        const parentCell = cell.master;\n                        rowStr = getReadableValue(parentCell).toString();\n                    }\n                    else \n                    {   \n                        // if the rowStr is not empty, add a tab\n                        rowStr += \",\";\n                    }\n                }\n                // if the master cell is in the previous row\n                // just ignore it\n                \n                return;\n            }\n\n            const cellStr = getReadableValue(cell);\n            rowStr += `${cellStr}`\n\n            // remove any new line characters\n            rowStr = rowStr.replace(/(\\r\\n|\\n|\\r)/gm, \"  \");\n            \n        });\n\n        rowStr += \"\\n\";\n        content += rowStr;\n    });\n\n    return content;\n}\n\nfunction getReadableValue(cell) {\n\n    let realCell = cell;\n    if (cell.type === ExcelJS.ValueType.Merge)\n    {\n        realCell = cell.master;\n    }\n\n    let val = realCell.value;\n\n    switch(realCell.type)\n    {\n        case ExcelJS.ValueType.Null:\n            val = '';\n            break;\n        case ExcelJS.ValueType.Date:\n            val = val.toLocaleString();\n            break;\n        case ExcelJS.ValueType.Hyperlink:\n            val = val.text;\n            break;\n        case ExcelJS.ValueType.Formula:\n            val = val.result;\n            break;\n        case ExcelJS.ValueType.RichText:\n            val = (val.richText.map((r) => r.text)).join();\n            break;\n    }    \n\n    if (typeof val === \"string\" || typeof val === \"number\" || typeof val === \"boolean\" || typeof val === \"bigint\") {\n        return val;\n    } else {\n        console.log(\"warning: uknown object: %j\", val);\n        return `<${typeof val}>`;\n    }\n}\n\n(async() => {\n    const { data, code } = await convertImageToDoc('xlsx');\n\n    if (code == 0) {\n        // console.log('taskId:', data.task_id);\n\n        while (true) {\n\n            const { data: progress, code: resultCode  } = await getTaskResult('xlsx', data.task_id);\n            if (resultCode == 0) {\n                if (progress.status == 1 && progress.progress == 100 ) {\n                    // console.log('转换成功. 下载URL: ', progress.download_url);\n\n                    try {\n\n                        const content = await readExcel(progress.download_url);\n                        console.log('Excel内容:');\n                        console.log(content);\n                        break;\n\n                    }\n                    catch (err) {\n                        console.log('Error loading workbook:', err);\n                        break;\n                    }\n                }\n                else if (progress.status == 3 || progress.status == 4) {\n                    console.log('转换失败:', progress);\n                    break;\n                }\n            }\n            else {\n                console.log('获取任务结果失败:', progress);\n                break;\n            }\n\n            await new Promise(resolve => setTimeout(resolve, 1000));\n        }\n    }\n    else {\n        console.log('转换失败:', data);\n    }\n\n})();",
+            "outputVariableName": "result",
+            "appearance": {
+                "startPoint": "{\"x\":810,\"y\":300}",
+                "textPoint": "{\"x\":810,\"y\":300}"
+            }
+        },
+        {
+            "nodeId": "0816e9d2-97b0-44e7-aa3d-966e59018f55",
+            "action": 100,
+            "prompt": "以下是⼀个 CSV 格式的数据：\n{{result}}\n规则：\n1. 按照 \"最终成绩\" 对应以下绩点：\n - 90-100 -> 4.5\n - 80-89 -> 3.5\n - 70-79 -> 2.5\n - 60-69 -> 1.5\n - <60 -> 0.0\n2. 每⻔课程的加权绩点为 (绩点 × 学分)。\n3. 总绩点 (GPA) 为所有加权绩点的加权平均值：\n GPA = Σ(绩点 × 学分) / Σ(学分)\n\n生成一段python代码来计算GPA。代码必须输出以下格式信息：\n\n 姓名: <学生姓名>\n GPA: <计算结果>\n\n你只需要输出最后的代码，不需要任何解释。\n\n注意在生成代码时只使用表格内有效的字段，也就是成绩和学分，减少代码量。\n",
+            "outputVariableName": "code",
+            "appearance": {
+                "startPoint": "{\"x\":1200,\"y\":300}",
+                "textPoint": "{\"x\":1200,\"y\":300}"
+            }
+        },
+        {
+            "nodeId": "a90ed0bb-8f5a-4a31-b642-0e23b4d4087d",
+            "action": 6,
+            "lang": "python",
+            "prompt": "{{code}}",
+            "outputVariableName": "gpa",
+            "appearance": {
+                "startPoint": "{\"x\":1590,\"y\":300}",
+                "textPoint": "{\"x\":1590,\"y\":300}"
+            }
+        },
+        {
+            "nodeId": "37e918b7-36d6-4155-a3a1-9c061f83d7d5",
+            "action": 2,
+            "prompt": "{{gpa}}\n{{status}}",
+            "provideType": 1,
+            "appearance": {
+                "startPoint": "{\"x\":1980,\"y\":300}",
+                "textPoint": "{\"x\":1980,\"y\":300}"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "edgeId": "50b06f85-8a59-4a9e-afab-576397adb479",
+            "sourceNodeId": "c35b31d5-910b-4fcb-ba94-0a6b711754e6",
+            "targetNodeId": "417e4029-55d4-4291-8655-2736b9bc2d10",
+            "type": "flow-link",
+            "appearance": {
+                "startPoint": "{\"x\":550,\"y\":300}",
+                "endPoint": "{\"x\":660,\"y\":300}",
+                "pointsList": "[{\"x\":550,\"y\":300},{\"x\":650,\"y\":300},{\"x\":560,\"y\":300},{\"x\":660,\"y\":300}]"
+            }
+        },
+        {
+            "edgeId": "61f05ffa-46a6-4415-9df0-7db320466985",
+            "sourceNodeId": "417e4029-55d4-4291-8655-2736b9bc2d10",
+            "targetNodeId": "0816e9d2-97b0-44e7-aa3d-966e59018f55",
+            "type": "flow-link",
+            "appearance": {
+                "startPoint": "{\"x\":960,\"y\":300}",
+                "endPoint": "{\"x\":1050,\"y\":300}",
+                "pointsList": "[{\"x\":960,\"y\":300},{\"x\":1060,\"y\":300},{\"x\":950,\"y\":300},{\"x\":1050,\"y\":300}]"
+            }
+        },
+        {
+            "edgeId": "0aa85866-5ddd-4f0e-b7ba-1cc934e0a942",
+            "sourceNodeId": "0816e9d2-97b0-44e7-aa3d-966e59018f55",
+            "targetNodeId": "a90ed0bb-8f5a-4a31-b642-0e23b4d4087d",
+            "type": "flow-link",
+            "appearance": {
+                "startPoint": "{\"x\":1350,\"y\":300}",
+                "endPoint": "{\"x\":1440,\"y\":300}",
+                "pointsList": "[{\"x\":1350,\"y\":300},{\"x\":1450,\"y\":300},{\"x\":1340,\"y\":300},{\"x\":1440,\"y\":300}]"
+            }
+        },
+        {
+            "edgeId": "d9b715d0-43aa-4470-84ae-407e9643bfb8",
+            "sourceNodeId": "a90ed0bb-8f5a-4a31-b642-0e23b4d4087d",
+            "targetNodeId": "37e918b7-36d6-4155-a3a1-9c061f83d7d5",
+            "type": "flow-link",
+            "appearance": {
+                "startPoint": "{\"x\":1740,\"y\":300}",
+                "endPoint": "{\"x\":1830,\"y\":300}",
+                "pointsList": "[{\"x\":1740,\"y\":300},{\"x\":1840,\"y\":300},{\"x\":1730,\"y\":300},{\"x\":1830,\"y\":300}]"
+            }
+        },
+        {
+            "edgeId": "73a9e843-07fb-47e2-90e1-5e1b93771b6e",
+            "sourceNodeId": "d09b43bb-5043-43af-a6ae-1ba1a409805f",
+            "targetNodeId": "c35b31d5-910b-4fcb-ba94-0a6b711754e6",
+            "type": "flow-link",
+            "appearance": {
+                "startPoint": "{\"x\":140,\"y\":300}",
+                "endPoint": "{\"x\":250,\"y\":300}",
+                "pointsList": "[{\"x\":140,\"y\":300},{\"x\":240,\"y\":300},{\"x\":150,\"y\":300},{\"x\":250,\"y\":300}]"
+            }
+        }
+    ]
+}

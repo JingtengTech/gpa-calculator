@@ -3,35 +3,23 @@
 #### 介绍
 上传学生成绩单图片，可自动OCR识别图表，并计算点绩（GPA）
 
-#### 软件架构
-软件架构说明
-
-
-#### 安装教程
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
+#### 煎蛋智能体流程
+![alt text](image.png)
 
 #### 使用说明
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### 参与贡献
-
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+**注意**：本智能体使用到了WPS表格识别API （https://solution.wps.cn/docs/convert/img-to-docs.html），请前往WPS开放平台获取对应的app_id 和 app_key，并填入开始节点对应的环境变量里。
 
 
-#### 特技
+1. 创建任意煎蛋智能体
+2. 点击进入智能体编辑界面
+3. 点击源代码 -> 导入
+4. 选择文件agent.gen，完整煎蛋流程即可导入。
+5. 点击设置，多模态选项里勾上 "图片"
+6. 保存设置
+7. 点击编辑流程，点击开始节点，填入你的WPS app_id 和 app_key
+8. 点击调试按钮，上传成绩单图片，即可自动计算点绩。
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+#### 注册煎蛋账号
+
+1.  访问https://gendial.cn
+2.  与右下角的煎蛋对话获取测试账号
